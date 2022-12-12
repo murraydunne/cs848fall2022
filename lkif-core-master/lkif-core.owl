@@ -1,19 +1,19 @@
 <?xml version="1.0"?>
 <rdf:RDF
-    xmlns:modification="http://www.estrellaproject.org/lkif-core/time-modification.owl#"
-    xmlns:norm="http://www.estrellaproject.org/lkif-core/norm.owl#"
-    xmlns:laction="http://www.estrellaproject.org/lkif-core/legal-action.owl#"
+    xmlns:modification="time-modification.owl#"
+    xmlns:norm="norm.owl#"
+    xmlns:laction="legal-action.owl#"
     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
     xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
     xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
-    xmlns="http://www.estrellaproject.org/lkif-core/lkif-core.owl#"
+    xmlns="lkif-core.owl#"
     xmlns:owl="http://www.w3.org/2002/07/owl#"
-    xmlns:rules="http://www.estrellaproject.org/lkif-core/lkif-rules.owl#"
-    xmlns:lrole="http://www.estrellaproject.org/lkif-core/legal-role.owl#"
-  xml:base="http://www.estrellaproject.org/lkif-core/lkif-core.owl">
+    xmlns:rules="lkif-rules.owl#"
+    xmlns:lrole="legal-role.owl#"
+  xml:base="lkif-core.owl">
   <owl:Ontology rdf:about="">
-    <owl:imports rdf:resource="http://www.estrellaproject.org/lkif-core/legal-role.owl"/>
-    <owl:imports rdf:resource="http://www.estrellaproject.org/lkif-core/norm.owl"/>
+    <owl:imports rdf:resource="legal-role.owl"/>
+    <owl:imports rdf:resource="norm.owl"/>
     <owl:versionInfo rdf:datatype="http://www.w3.org/2001/XMLSchema#string"
     >
 Partner contributions from the University of Amsterdam (UvA), the University of Bologna (UNIBO) and the Fraunhofer institute (FOKUS)
