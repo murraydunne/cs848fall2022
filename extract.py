@@ -2,6 +2,7 @@ from io import StringIO
 from bs4 import BeautifulSoup
 from lxml import etree
 from transformers import pipeline, AutoModel, AutoTokenizer, AutoModelForQuestionAnswering
+import fileinput, sys
 
 #question_answering = pipeline("question-answering", model="bert-large-uncased-whole-word-masking-finetuned-squad", device=0)
 #question_answering = pipeline("question-answering", model="jasoneden/bloom560m-squad-helloworld", device=0)
@@ -10,6 +11,10 @@ question_answering = pipeline("question-answering", model="deepset/roberta-base-
 
 files = ['SuperiorCourt/2021/SuperiorCourtDecisions-2021-9.html', 
          'SuperiorCourt/2021/SuperiorCourtDecisions-2021-10.html']
+
+questions = []
+with open(sys.argv[1]) as f:
+    questions = f.readlines()
 
 # load each file and import HTML into beautiful soup
 for file in files:
@@ -33,13 +38,16 @@ for file in files:
     print(soup.find(id='documentMeta').text.strip().split()[4])
 
     context = soup.find(id='documentContainer').getText().replace('\xa0', '')
-    question1 = "Who is the plaintiff?"
-    question2 = "Who is the defendant?"
-    question3 = "Is this case civil or criminal?"
+    # question1 = "Who is the plaintiff?"
+    # question2 = "Who is the defendant?"
+    # question3 = "Is this case civil or criminal?"
 
-    print(question_answering(question=question1, context=context))
-    print(question_answering(question=question2, context=context))
-    print(question_answering(question=question3, context=context))
+    # print(question_answering(question=question1, context=context))
+    # print(question_answering(question=question2, context=context))
+    # print(question_answering(question=question3, context=context))
+
+    for q in questions:
+        print(q, ' === ', question_answering(question=q, context=context))
 
 
     print()
