@@ -435,39 +435,136 @@ def get_active_passive_predicates(predicate):
 # else:
 
 # the actual question generation recursion
-def question_generation_recursion(current_node, remaining_links):
-    if remaining_links == 0:
-        # this is the termination of the recursion
-        for p in domains[current_node]:
-            for o in ranges[current_node][p]:
-                yield (clear(o) + ' ' + get_active_passive_predicates(p)[1] + ' this ' + clear(current_node), (current_node, p, o))
-        if current_node in subjects_by_object_by_predicate.keys():
-            for p in subjects_by_object_by_predicate[current_node]:
-                for s in subjects_by_object_by_predicate[current_node][p]:
-                    yield (clear(s) + ' ' + get_active_passive_predicates(p)[0] + ' this ' + clear(current_node), (s, p, current_node))
-        if current_node in data_properties_by_subject_by_predicate.keys():
-            for p in data_properties_by_subject_by_predicate[current_node]:
-                for o in data_properties_by_subject_by_predicate[current_node][p]:
-                    yield (clear(p) + ' this ' + clear(current_node), (current_node, p, o))
-    # else:
-    #     for p in domains[current_node]:
-    #         for o in ranges[current_node][p]:
-    #             for suffix in question_generation_recursion(o, remaining_links - 1):
-
+# def question_generation_basecase(current_node):
+#     # this is the final node where we ask the last subquestion
+#     for p in domains[current_node]:
+#         for o in ranges[current_node][p]:
+#             yield clear(o) + ' ' + get_active_passive_predicates(p)[1] + ' this ' + clear(current_node), (current_node, p, o)
+#     if current_node in subjects_by_object_by_predicate.keys():
+#         for p in subjects_by_object_by_predicate[current_node]:
+#             for s in subjects_by_object_by_predicate[current_node][p]:
+#                 yield clear(s) + ' ' + get_active_passive_predicates(p)[0] + ' this ' + clear(current_node), (s, p, current_node)
+#     if current_node in data_properties_by_subject_by_predicate.keys():
+#         for p in data_properties_by_subject_by_predicate[current_node]:
+#             for o in data_properties_by_subject_by_predicate[current_node][p]:
+#                 yield clear(p) + ' this ' + clear(current_node), (current_node, p, o)
     
+# def question_generation_step_case(target):
+#     # this is an intermediate step in the graph where we add a qualifier to the question
+
+#     for p in domains[target]:
+#         for o in ranges[target][p]:
+#             yield clear(o) + ' ' + get_active_passive_predicates(p)[1]
+#     if target in subjects_by_object_by_predicate.keys():
+#         for p in subjects_by_object_by_predicate[target]:
+#             for s in subjects_by_object_by_predicate[target][p]:
+#                 yield clear(s) + ' ' + get_active_passive_predicates(p)[0]
+#     if target in data_properties_by_subject_by_predicate.keys():
+#         for p in data_properties_by_subject_by_predicate[target]:
+#             # there shouldn't be multiple datatype objects with the same predicate name on the same subject
+#             #for o in data_properties_by_subject_by_predicate[target][p]:
+#             yield clear(p)
+
+visited = []
+
+def question_visit_recurse(start, link_count):
+    global visited
+    visited.append(start)
+
+    if link_count == 0:
+        yield [start]
+        if start in data_properties_by_subject_by_predicate.keys():
+            for p in data_properties_by_subject_by_predicate[start]:
+                yield [start, p]
+
+    else:
+        if start in domains.keys():
+            for p in domains[start]:
+                for o in ranges[start][p]:
+                    if o not in visited:
+                        for ext in question_visit_recurse(o, link_count - 1):
+                            res = [start, p]
+                            res.extend(ext)
+                            yield res
+        if start in subjects_by_object_by_predicate.keys():
+            for p in subjects_by_object_by_predicate[start]:
+                for s in subjects_by_object_by_predicate[start][p]:
+                    if s not in visited:
+                        for ext in question_visit_recurse(s, link_count - 1):
+                            # ext.extend([p, start])
+                            # yield ext
+                            res = [start, p + "[INVERSE]"]
+                            res.extend(ext)
+                            yield res
 
 def question_generation_wrapper(start_node, link_count):
-    for suffix, mapping in question_generation_recursion(start_node, link_count):
-        yield ('What ' + suffix + '?', mapping)
+    global visited
+    visited = []
+
+    for question_chain in question_visit_recurse(start_node, link_count):
+        question = 'What '
+
+        i = len(question_chain) - 1
+
+        if len(question_chain) <= 1:
+            # one chains are pointless, we just use link count zero to mean data properties only
+            continue
+
+        if len(question_chain) % 2 == 0:
+            # if it's even it ends with a datatype property, so remove that form the count
+            i -= 1
+            # and put it at the beginning
+            if get_inverse_clear(question_chain[-1]) == None:
+                question += clear(question_chain[-1]) + ' '
+            else:
+                question += get_active_passive_predicates(question_chain[-1])[1] + ' '
+
+        while i >= 0:
+            if i == 0:
+                # first entity gets the qualifier
+                question += 'this '
+
+            if i % 2 == 0:
+                # even number means this is an entity
+                question += clear(question_chain[i]) + ' '
+            else:
+                # odd number means this is a predicate, is it inverted?
+                if question_chain[i].endswith('[INVERSE]'):
+                    clean_predicate = question_chain[i].split('[INVERSE]')[0]
+                    question += get_active_passive_predicates(clean_predicate)[0] + ' '
+                else:
+                    question += get_active_passive_predicates(question_chain[i])[1] + ' '
+
+            i -= 1
+
+        # ending space becomes question mark
+        question = question[:-1] + '?'
+        yield question, question_chain
+
+
+    # one_hop = []
+    # for p in domains[start_node]:
+    #     for o in ranges[start_node][p]:
+    #         one_hop.append((o, start_node, p, o))
+    # if start_node in subjects_by_object_by_predicate.keys():
+    #     for p in subjects_by_object_by_predicate[start_node]:
+    #         for s in subjects_by_object_by_predicate[start_node][p]:
+    #             one_hop.append((s, s, p, start_node))
+
+    # print(one_hop)
+
+    # for suffix, mapping in question_generation_basecase(start_node, link_count):
+    #     yield ('What ' + suffix + '?', mapping)
 
 
 document_subject = sys.argv[2]
 gf = Gramformer(models = 1, use_gpu=True)
 
-for i in range(1):
+for i in range(3):
     for question, mapping in question_generation_wrapper(document_subject, i):
         #print("Original question:", question)
         print(','.join(mapping))
+        print(question)
         print(gf.correct(question, max_candidates=1).pop())
 
 
