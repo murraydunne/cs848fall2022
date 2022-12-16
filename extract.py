@@ -14,7 +14,17 @@ files = ['SuperiorCourt/2021/SuperiorCourtDecisions-2021-9.html',
 
 questions = []
 with open(sys.argv[1]) as f:
-    questions = f.readlines()
+    lines = f.readlines()
+    for i in range(1, len(lines), 2):
+        questions.append((lines[i+1].strip(), lines[i].strip().split(',')))
+
+prefix = sys.argv[2]
+
+def patch_name(x):
+    return x
+
+def is_terminal_type(x):
+    return False
 
 # load each file and import HTML into beautiful soup
 for file in files:
@@ -37,7 +47,7 @@ for file in files:
     print(soup.find(id='documentMeta').select_one(":nth-child(2)").text)
     print(soup.find(id='documentMeta').text.strip().split()[4])
 
-    context = soup.find(id='documentContainer').getText().replace('\xa0', '')
+    context = soup.find(id='documentContainer').getText().replace('\xa0', '').replace('\n', ' ')
     # question1 = "Who is the plaintiff?"
     # question2 = "Who is the defendant?"
     # question3 = "Is this case civil or criminal?"
@@ -46,8 +56,16 @@ for file in files:
     # print(question_answering(question=question2, context=context))
     # print(question_answering(question=question3, context=context))
 
-    for q in questions:
-        print(q, ' === ', question_answering(question=q, context=context))
+    for quest, predicate in questions:
+
+        q_a = question_answering(question=quest, context=context)
+
+
+        if 'case' in predicate[0].split('#')[-1]:
+            if is_terminal_type(predicate[2]):
+                print('<' + prefix + '/case' + )
+
+            print('<' + prefix + '/' + )
 
 
     print()

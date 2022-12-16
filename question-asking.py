@@ -265,6 +265,14 @@ for s, p, o in ontology_triples:
         if domain_type != None and range_type != None and domain_type in classes:
             data_properties.append((domain_type, s, range_type))
 
+data_properties_by_subject_by_predicate = dict()
+for s, p, o in data_properties:
+    if s not in data_properties_by_subject_by_predicate:
+        data_properties_by_subject_by_predicate[s] = dict()
+    if p not in data_properties_by_subject_by_predicate[s]:
+        data_properties_by_subject_by_predicate[s][p] = set()
+    data_properties_by_subject_by_predicate[s][p].add(o)
+
 if print_all:
     print('data props')
     print(data_properties)
@@ -397,10 +405,10 @@ def get_active_passive_predicates(predicate):
     else:
         return inverse_clear, clear_predicate
 
-# for s, p, o in restrictions:
-#     print(short(s), short(p), short(o), get_active_passive_predicates(p))
+for s, p, o in restrictions:
+    print(short(s), short(p), short(o), get_inverse_clear(p))
 
-# exit()
+exit()
 # if p in inverses.keys():
 #     print(p, inverses[p])
 # else:
@@ -412,10 +420,14 @@ def question_generation_recursion(current_node, remaining_links):
         for p in domains[current_node]:
             for o in ranges[current_node][p]:
                 yield (clear(o) + ' ' + get_active_passive_predicates(p)[1] + ' this ' + clear(current_node), (current_node, p, o))
-        if current_node in subjects_by_object_by_predicate:
+        if current_node in subjects_by_object_by_predicate.keys():
             for p in subjects_by_object_by_predicate[current_node]:
                 for s in subjects_by_object_by_predicate[current_node][p]:
                     yield (clear(s) + ' ' + get_active_passive_predicates(p)[0] + ' this ' + clear(current_node), (s, p, current_node))
+        if current_node in data_properties_by_subject_by_predicate.keys():
+            for p in data_properties_by_subject_by_predicate[current_node]:
+                for o in data_properties_by_subject_by_predicate[current_node][p]:
+                    yield (clear(p) + ' this ' + clear(current_node), (current_node, p, o))
     # else:
     #     for p in domains[current_node]:
     #         for o in ranges[current_node][p]:
