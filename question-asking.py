@@ -21,6 +21,7 @@ with open(sys.argv[1]) as f:
         if '_:' not in p:
             p = p[1:-1]
 
+        o = o.replace('@en', '')
         if o.startswith('<'):
             o = o[1:]
         if o.endswith(' .'):
@@ -165,19 +166,20 @@ if print_all:
 # now we restructure the restrictions taking into account the class
 # heirarchy so all relations are in the subclasses
 
-# this is a list of sets of prediates by subject
+# this is a dict of sets of prediates by subject
 domains = dict()
-# and this is a list of sets of objects by predicate
+# and this is a dict of [dicts of objects] by subject by predicate
 ranges = dict()
 
 for s, p, o in restrictions:
     if s not in domains.keys():
         domains[s] = set()
+        ranges[s] = dict()
     if p not in ranges.keys():
-        ranges[p] = set()
+        ranges[s][p] = set()
     
     domains[s].add(p)
-    ranges[p].add(o)
+    ranges[s][p].add(o)
 
     if s in subclass_map.keys():
         considered_subclasses = set()
@@ -189,6 +191,7 @@ for s, p, o in restrictions:
 
             if cls not in domains.keys():
                 domains[cls] = set()
+                ranges[cls] = dict()
             domains[cls].add(p)
             
             considered_subclasses.add(cls)
@@ -205,7 +208,7 @@ for s, p, o in restrictions:
         while len(unconsidered_subclasses) > 0:
             cls = unconsidered_subclasses.pop()
 
-            ranges[p].add(cls)
+            ranges[s][p].add(cls)
             
             considered_subclasses.add(cls)
 
@@ -214,10 +217,37 @@ for s, p, o in restrictions:
                 new_sub.difference_update(considered_subclasses)
                 unconsidered_subclasses = unconsidered_subclasses.union(new_sub)
 
+subjects_by_predicate = dict()
+for s in ranges.keys():
+    for p in ranges[s]:
+        if p not in subjects_by_predicate.keys():
+            subjects_by_predicate[p] = set()
+        subjects_by_predicate[p].add(s)
+
+predicates_by_object = dict()
+for s in ranges.keys():
+    for p in ranges[s]:
+        for o in ranges[s][p]:
+            if o not in predicates_by_object.keys():
+                predicates_by_object[o] = set()
+            predicates_by_object[o].add(p)
+
+subjects_by_object_by_predicate = dict()
+for s in ranges.keys():
+    for p in ranges[s]:
+        for o in ranges[s][p]:
+            if o not in subjects_by_object_by_predicate.keys():
+                subjects_by_object_by_predicate[o] = dict()
+            if p not in subjects_by_object_by_predicate[o].keys():
+                subjects_by_object_by_predicate[o][p] = set()
+            subjects_by_object_by_predicate[o][p].add(s)
+
 if print_all:
     print(domains)
     print('ranges')
     print(ranges)
+    print('flat ranges')
+    print(flat_ranges)
 
 # now we load the data properties
 data_properties = []
@@ -239,6 +269,17 @@ if print_all:
     print('data props')
     print(data_properties)
 
+# now we load the restruction inverses
+inverses = dict()
+for s, p, o in ontology_triples:
+    if p.endswith('owl#inverseOf'):
+        inverses[s] = o
+        inverses[o] = s
+
+if print_all:
+    print('inverses')
+    print(inverses)
+
 # for s, p, o in restrictions:
 #     print(s, p, o)
 
@@ -252,37 +293,160 @@ if print_all:
 ###### PHASE 2: GENERATE FIRST ORDER QUESTIONS ##########
 #########################################################
 
-for s, p, o in data_properties:
-    print('data', s, p, o)
-
-for s, p, o in restrictions:
-    print('object', s, p, o)
-exit()
-
-import spacy
 import re
-nlp = spacy.load("en_core_web_trf")
 
-gf = Gramformer(models = 1, use_gpu=True)
+def short(x):
+    return x.strip().split('#')[-1].split('/')[-1]
 
 def clear(x):
     if x in labels.keys():
         return labels[x]
     else:
-        spacified = x.strip().split('#')[-1].split('/')[-1].replace('_', ' ')
         # convert camel case to space case from 
         # https://stackoverflow.com/questions/5020906/python-convert-camel-case-to-space-delimited-using-regex-and-taking-acronyms-in
-        return re.sub(r'((?<=[a-z])[A-Z]|(?<!\A)[A-Z](?=[a-z]))', r' \1', spacified)
+        return re.sub(r'((?<=[a-z])[A-Z]|(?<!\A)[A-Z](?=[a-z]))', r' \1', short(x).replace('_', ' '))
+
+# for s, p, o in data_properties:
+#     print('data', (s), (p), (o))
+
+# for s, p, o in restrictions:
+#     print('object', (s), (p), (o))
+
+
+import spacy
+from lemminflect import getInflection
+nlp = spacy.load("en_core_web_trf")
+
+# get the inverse of a predicate verb phrase
+def get_inverse_clear(predicate):
+    if predicate in inverses.keys():
+        return clear(inverses[predicate])
+    
+    # there's no inverse defined, lets check it's case
+    clear_predicate = clear(predicate)
+    doc = nlp(clear_predicate)
+
+    if len(doc) == 3 and doc[0].text == 'is' and doc[2].text == 'by':
+        return doc[1]._.inflect('VBZ')
+
+    if len(doc) == 3 and doc[0].text == 'is' and doc[2].text == 'in':
+        return doc[1]._.inflect('VBZ')
+        
+    if len(doc) == 3 and doc[0].text == 'is' and doc[2].text == 'on':
+        return doc[1]._.inflect('VBZ')
+
+    if len(doc) == 3 and doc[0].pos_ == 'VERB' and doc[1].pos_ == 'ADP' and doc[2].pos_ == 'NOUN':
+        return 'is ' + doc[0]._.inflect('VBD') + ' by'
+
+    if len(doc) == 2 and doc[0].text == 'has':
+        return 'is ' + doc[1].text + ' of'
+
+    if len(doc) == 2 and doc[0].pos_ == 'VERB' and doc[1].text == 'in':
+        return doc[0].text
+
+    if len(doc) == 1 and doc[0].pos_ == 'NOUN':
+        return 'is ' + doc[0]._.inflect('VBD') + ' by'
+
+    if len(doc) == 2 and doc[1].pos_ == 'NOUN':
+        return 'is ' + doc[0]._.inflect('VBD') + ' by'
+
+    if clear_predicate == 'for':
+        return 'won'
+    if clear_predicate == 'against':
+        return 'lost'
+
+    return None # there is no reasonable inverse
+    
+# get the active and passive versions of the predicate verb phrase
+def get_active_passive_predicates(predicate):
+    active = True
+    decided = False
+
+    clear_predicate = clear(predicate)
+    inverse_clear = get_inverse_clear(predicate)
+
+    if 'is' in clear_predicate:
+        active = False
+        decided = True
+
+    if 'in' in clear_predicate:
+        active = False
+        decided = True
+
+    if 'won' in clear_predicate:
+        active = False
+        decided = True
+
+    if 'is' in inverse_clear:
+        active = True
+        decided = True
+
+    if 'in' in inverse_clear:
+        active = True
+        decided = True
+
+    if 'won' in inverse_clear:
+        active = False
+        decided = True
+
+    if not decided:
+        print("UNDECIDED:", predicate, clear_predicate, inverse_clear)
+
+    if active:
+        return clear_predicate, inverse_clear
+    else:
+        return inverse_clear, clear_predicate
+
+# for s, p, o in restrictions:
+#     print(short(s), short(p), short(o), get_active_passive_predicates(p))
+
+# exit()
+# if p in inverses.keys():
+#     print(p, inverses[p])
+# else:
+
+# the actual question generation recursion
+def question_generation_recursion(current_node, remaining_links):
+    if remaining_links == 0:
+        # this is the termination of the recursion
+        for p in domains[current_node]:
+            for o in ranges[current_node][p]:
+                yield (clear(o) + ' ' + get_active_passive_predicates(p)[1] + ' this ' + clear(current_node), (current_node, p, o))
+        if current_node in subjects_by_object_by_predicate:
+            for p in subjects_by_object_by_predicate[current_node]:
+                for s in subjects_by_object_by_predicate[current_node][p]:
+                    yield (clear(s) + ' ' + get_active_passive_predicates(p)[0] + ' this ' + clear(current_node), (s, p, current_node))
+    # else:
+    #     for p in domains[current_node]:
+    #         for o in ranges[current_node][p]:
+    #             for suffix in question_generation_recursion(o, remaining_links - 1):
+
+    
+
+def question_generation_wrapper(start_node, link_count):
+    for suffix, mapping in question_generation_recursion(start_node, link_count):
+        yield ('What ' + suffix + '?', mapping)
 
 
 document_subject = sys.argv[2]
+gf = Gramformer(models = 1, use_gpu=True)
 
-for p in domains[document_subject]:
-    for o in ranges[p]:
-        question = 'What ' + clear(document_subject) + ' ' + clear(p) + ' this ' + clear(o) + '?'
-        print(question)
-        good_question = gf.correct(question, max_candidates=1).pop()
-        print(good_question)
+for i in range(1):
+    for question, mapping in question_generation_wrapper(document_subject, i):
+        #print("Original question:", question)
+        print(','.join(mapping))
+        print(gf.correct(question, max_candidates=1).pop())
+
+
+# for p in domains[document_subject]:
+#     for o in ranges[p]:
+#         question = 'What ' + clear(document_subject) + ' ' + clear(p) + ' this ' + clear(o) + '?'
+#         print(o)
+#         print('original:', question)
+#         good_question = gf.correct(question, max_candidates=1).pop()
+#         print('grammar:', good_question)
+
+#for s, p, o in restrictions:
 
 
 # for s, p, o in restrictions:
