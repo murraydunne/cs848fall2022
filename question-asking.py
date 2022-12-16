@@ -86,20 +86,33 @@ for s, p, o in ontology_triples:
         # o is the property, sometimes it's not defined
         if o not in object_properties:
             object_properties.add(o)
-        
+
         # what is the target type
-        target_type = None
+        find_type = None
         # this search is n^2 and could be optimized with a map, but the
         # ontologies are small enough it's irrelevant
         for s2, p2, o2 in ontology_triples:
-            if s2 == s and (p2.endswith('owl#someValuesFrom') or p2.endswith('owl#allValuesFrom')):
-                target_type = o2
+            if s2 == s and (p2.endswith('owl#someValuesFrom') or p2.endswith('owl#allValuesFrom')) and o2 in classes:
+                find_type = o2
                 break
-        
-        if target_type == None or target_type not in classes:
-            #raise RuntimeError('Missing type for property restriction on ' + o)
-            # if this didn't resolve it's in the middle of a chain, so we can ignore it
-            continue
+            elif o2 == s and p2.endswith('#subClassOf') and s2 in classes:
+                find_type = o2
+                break
+
+        # find all the target types (could be a union or intersection)
+        # this is also n^x, but again, ontologies so small it's irrelevant
+        find_queue = [find_type]
+        target_types = []
+        while len(find_queue) > 0:
+            curr_type = find_queue.pop()
+            if curr_type in classes:
+                target_types.append(curr_type)
+            else:
+                for s3, p3, o3 in ontology_triples:
+                    if s3 == curr_type and o3 in classes:
+                        target_types.append(o3)
+                    elif s3 == curr_type and o3.startswith('_:'):
+                        find_queue.append(o3)
 
         # o is the property, target_type is the type
         # now what is the subject?
@@ -110,7 +123,7 @@ for s, p, o in ontology_triples:
         while find_limit < 10:
             for s3, p3, o3 in ontology_triples:
                 if o3 == target_subject:
-                    if p3.endswith('owl#someValuesFrom') or p3.endswith('owl#allValuesFrom') or p3.endswith('#first') or p3.endswith('#rest') or p3.endswith('owl#intersectionOf') or p3.endswith('owl#complementOf'):
+                    if p3.endswith('owl#someValuesFrom') or p3.endswith('owl#allValuesFrom') or p3.endswith('#first') or p3.endswith('#rest') or p3.endswith('owl#intersectionOf') or p3.endswith('owl#complementOf') or p3.endswith('owl#unionOf'):
                         target_subject = s3
                         break
                     elif p3.endswith('#subClassOf'):
@@ -125,8 +138,9 @@ for s, p, o in ontology_triples:
             # nah, let's just ingore these if they're this hard
             continue
 
-        # add the restriction
-        restrictions.append((target_subject, o, target_type))
+        # add the restrictions
+        for target_type in target_types:
+            restrictions.append((target_subject, o, target_type))
 
 # if there are object properties defined with both a domain and a range, then we also include them
 # as restrictions, since there's very little difference
@@ -175,7 +189,7 @@ for s, p, o in restrictions:
     if s not in domains.keys():
         domains[s] = set()
         ranges[s] = dict()
-    if p not in ranges.keys():
+    if p not in ranges[s].keys():
         ranges[s][p] = set()
     
     domains[s].add(p)
@@ -405,10 +419,17 @@ def get_active_passive_predicates(predicate):
     else:
         return inverse_clear, clear_predicate
 
-for s, p, o in restrictions:
-    print(short(s), short(p), short(o), get_inverse_clear(p))
+#print(domains[sys.argv[2]])
 
-exit()
+# for s, p, o in restrictions:
+#     print(short(s), short(p), short(o), get_inverse_clear(p))
+
+# for s in domains.keys():
+#     print(s, domains[s])
+#     for p in domains[s]:
+#         print('\t', ranges[s][p])
+
+# exit()
 # if p in inverses.keys():
 #     print(p, inverses[p])
 # else:
