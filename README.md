@@ -8,6 +8,7 @@ This is Murray Dunne and Oluwaseun Cardoso's CS 848 final project on Ontology-ba
 
 Ensure you have 2-5GB free disk space depending on the model you want to run. Using python version 3.8 or newer, install the following packages (in a venv if you so chose). **Note that you must install them in order with the below changes for this to work, there is a fundamental version incompatibility we have to work around.** This is why we do not supply a requirements.txt\:
 
+- lxml
 - beautifulsoup4
 - torch
 - torchvision
