@@ -4,7 +4,7 @@ import sys
 print_all = False
 
 #########################################################
-###### PHASE 1: LOAD THE ONTOLOGY FROM NTRIPLES #########
+###### LOAD THE ONTOLOGY FROM NTRIPLES ##################
 #########################################################
 
 # first load the ontology text lines
@@ -77,7 +77,7 @@ for s, p, o in ontology_triples:
         object_properties.add(s)
 
 # now we handle the restrictions, which manifest as subClassOf relations
-# TODO: we ignore the difference between some and all qualifiers here
+# we ignore the difference between some and all qualifiers here
 restrictions = []
 
 for s, p, o in ontology_triples:
@@ -116,7 +116,6 @@ for s, p, o in ontology_triples:
 
         # o is the property, target_type is the type
         # now what is the subject?
-        # TODO: we ignore compound restrictions and just go to the root type
         # this is also n^x, but again, ontologies so small it's irrelevant
         target_subject = s
         find_limit = 0
@@ -302,24 +301,17 @@ if print_all:
     print('inverses')
     print(inverses)
 
-# for s, p, o in restrictions:
-#     print(s, p, o)
-
-# for x in object_properties:
-#     print(x)
-
-# for x in subclass_map.keys():
-#     print(x, subclass_map[x])
-
 #########################################################
-###### PHASE 2: GENERATE FIRST ORDER QUESTIONS ##########
+###### GENERATE FIRST ORDER QUESTIONS ###################
 #########################################################
 
 import re
 
+# strip the namespacing off an OWL entity
 def short(x):
     return x.strip().split('#')[-1].split('/')[-1]
 
+# get the English text version of a class or predicate
 def clear(x):
     if x in labels.keys():
         return labels[x]
@@ -327,12 +319,6 @@ def clear(x):
         # convert camel case to space case from 
         # https://stackoverflow.com/questions/5020906/python-convert-camel-case-to-space-delimited-using-regex-and-taking-acronyms-in
         return re.sub(r'((?<=[a-z])[A-Z]|(?<!\A)[A-Z](?=[a-z]))', r' \1', short(x).replace('_', ' '))
-
-# for s, p, o in data_properties:
-#     print('data', (s), (p), (o))
-
-# for s, p, o in restrictions:
-#     print('object', (s), (p), (o))
 
 
 import spacy
@@ -419,54 +405,9 @@ def get_active_passive_predicates(predicate):
     else:
         return inverse_clear, clear_predicate
 
-#print(domains[sys.argv[2]])
-
-# for s, p, o in restrictions:
-#     print(short(s), short(p), short(o), get_inverse_clear(p))
-
-# for s in domains.keys():
-#     print(s, domains[s])
-#     for p in domains[s]:
-#         print('\t', ranges[s][p])
-
-# exit()
-# if p in inverses.keys():
-#     print(p, inverses[p])
-# else:
-
-# the actual question generation recursion
-# def question_generation_basecase(current_node):
-#     # this is the final node where we ask the last subquestion
-#     for p in domains[current_node]:
-#         for o in ranges[current_node][p]:
-#             yield clear(o) + ' ' + get_active_passive_predicates(p)[1] + ' this ' + clear(current_node), (current_node, p, o)
-#     if current_node in subjects_by_object_by_predicate.keys():
-#         for p in subjects_by_object_by_predicate[current_node]:
-#             for s in subjects_by_object_by_predicate[current_node][p]:
-#                 yield clear(s) + ' ' + get_active_passive_predicates(p)[0] + ' this ' + clear(current_node), (s, p, current_node)
-#     if current_node in data_properties_by_subject_by_predicate.keys():
-#         for p in data_properties_by_subject_by_predicate[current_node]:
-#             for o in data_properties_by_subject_by_predicate[current_node][p]:
-#                 yield clear(p) + ' this ' + clear(current_node), (current_node, p, o)
-    
-# def question_generation_step_case(target):
-#     # this is an intermediate step in the graph where we add a qualifier to the question
-
-#     for p in domains[target]:
-#         for o in ranges[target][p]:
-#             yield clear(o) + ' ' + get_active_passive_predicates(p)[1]
-#     if target in subjects_by_object_by_predicate.keys():
-#         for p in subjects_by_object_by_predicate[target]:
-#             for s in subjects_by_object_by_predicate[target][p]:
-#                 yield clear(s) + ' ' + get_active_passive_predicates(p)[0]
-#     if target in data_properties_by_subject_by_predicate.keys():
-#         for p in data_properties_by_subject_by_predicate[target]:
-#             # there shouldn't be multiple datatype objects with the same predicate name on the same subject
-#             #for o in data_properties_by_subject_by_predicate[target][p]:
-#             yield clear(p)
-
 visited = []
 
+# chain generating function
 def question_visit_recurse(start, link_count):
     global visited
     visited.append(start)
@@ -497,6 +438,7 @@ def question_visit_recurse(start, link_count):
                             res.extend(ext)
                             yield res
 
+# convert chains into question text in English
 def question_generation_wrapper(start_node, link_count):
     global visited
     visited = []
@@ -542,46 +484,13 @@ def question_generation_wrapper(start_node, link_count):
         yield question, question_chain
 
 
-    # one_hop = []
-    # for p in domains[start_node]:
-    #     for o in ranges[start_node][p]:
-    #         one_hop.append((o, start_node, p, o))
-    # if start_node in subjects_by_object_by_predicate.keys():
-    #     for p in subjects_by_object_by_predicate[start_node]:
-    #         for s in subjects_by_object_by_predicate[start_node][p]:
-    #             one_hop.append((s, s, p, start_node))
-
-    # print(one_hop)
-
-    # for suffix, mapping in question_generation_basecase(start_node, link_count):
-    #     yield ('What ' + suffix + '?', mapping)
-
-
 document_subject = sys.argv[2]
 gf = Gramformer(models = 1, use_gpu=True)
 
+# output the questions
 for i in range(3):
     for question, mapping in question_generation_wrapper(document_subject, i):
-        #print("Original question:", question)
         print(','.join(mapping))
         print(question)
         print(gf.correct(question, max_candidates=1).pop())
 
-
-# for p in domains[document_subject]:
-#     for o in ranges[p]:
-#         question = 'What ' + clear(document_subject) + ' ' + clear(p) + ' this ' + clear(o) + '?'
-#         print(o)
-#         print('original:', question)
-#         good_question = gf.correct(question, max_candidates=1).pop()
-#         print('grammar:', good_question)
-
-#for s, p, o in restrictions:
-
-
-# for s, p, o in restrictions:
-#     if s == document_object:
-#         bad_question = 'What ' + clear(o) + ' is this ' + clear(document_object) + ' ' + clear(p) + '?' 
-#         good_question = gf.correct(bad_question, max_candidates=1)
-#         print(bad_question)
-#         print(good_question)
